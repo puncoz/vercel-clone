@@ -3,9 +3,37 @@
 const express = require("express")
 const { generateSlug } = require("random-word-slugs")
 const { ECSClient, RunTaskCommand } = require("@aws-sdk/client-ecs")
+const Redis = require("ioredis")
+const { Server: SocketServer } = require("socket.io")
 
 const app = express()
 const PORT = 9000
+
+const subscriber = new Redis("redis://username:password@localhost:6379")
+
+const io = new SocketServer({
+    cors: "*",
+})
+
+io.on("connection", (socket) => {
+    socket.on("subscribe", (channel) => {
+        socket.join(channel)
+        socket.emit("message", `Joined ${channel}`)
+    })
+})
+
+const initRedisSubscriptions = () => {
+    console.log("Subscribing to logs...")
+
+    subscriber.psubscribe("logs:*")
+    subscriber.on("pmessage", (pattern, channel, message) => {
+        io.to(channel).emit("message", message)
+    })
+}
+
+io.listen(9001, () => {
+    console.log("Socket server listening on port 9001")
+})
 
 const ecsClient = new ECSClient({
     region: "ap-south-1",
@@ -21,8 +49,8 @@ const config = {
 }
 
 app.post("/project", async (req, res) => {
-    const { gitUrl } = req.body
-    const projectSlug = generateSlug()
+    const { gitUrl, slug } = req.body
+    const projectSlug = slug ?? generateSlug()
 
     // spin the container
     const command = new RunTaskCommand({
