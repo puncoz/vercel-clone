@@ -1,0 +1,7 @@
+### Send POST request to spin a new project
+POST http://localhost:9000/project
+Content-Type: application/json
+
+{
+  "gitUrl": "https://github.com/puncoz/test-project"
+}
